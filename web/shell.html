@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Haunted Hayride</title>
+<meta name="description" content="Haunted Hayride: ride a hay wagon through a night cornfield and catch the friendly spooks with your flashlight. A gentle Halloween game for little ones, on the Strata engine.">
+<meta name="theme-color" content="#120c1c">
+<style>
+  :root {
+    --bg: #0c0814; --panel: rgba(24, 14, 36, 0.92); --line: #4a3166; --text: #fbf1e4; --dim: #cbb9d9;
+    --pumpkin: #ff8a1e; --pumpkin-deep: #c85a08; --moon: #ffe9a8; --ghost: #dff1ff; --grape: #8f5bd6;
+    --sk-loader-bg: var(--bg); --sk-loader-fg: var(--text); --sk-loader-panel: var(--panel); --sk-loader-accent: var(--pumpkin);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font: 16px/1.35 ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, -apple-system, sans-serif;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  #stage { position: fixed; inset: 0; }
+  canvas#canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; background: #05040a; cursor: crosshair; }
+  button { font: inherit; color: var(--text); cursor: pointer; touch-action: manipulation; border: 0; }
+  button:focus-visible, a:focus-visible { outline: 3px solid var(--moon); outline-offset: 2px; }
+  a { color: var(--moon); }
+  .hidden { display: none !important; }
+
+  /* ---- the HUD while riding ---- */
+  #hud { position: fixed; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 10px; pointer-events: none;
+    padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left)); z-index: 2; }
+  .pill { pointer-events: auto; display: flex; align-items: center; gap: 8px; background: var(--panel); border: 2px solid var(--line);
+    border-radius: 999px; padding: 4px 14px 4px 6px; font-weight: 800; font-size: 22px; min-height: 48px; }
+  .pill svg { width: 36px; height: 36px; }
+  #found.bump { animation: bump 0.45s ease-out; }
+  @keyframes bump { 0% { transform: scale(1); } 35% { transform: scale(1.25); } 100% { transform: scale(1); } }
+  #track { flex: 1 1 auto; position: relative; height: 14px; border-radius: 999px; background: rgba(24, 14, 36, 0.75);
+    border: 2px solid var(--line); min-width: 60px; }
+  #trackFill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: linear-gradient(90deg, #6b3fa8, var(--pumpkin)); width: 0; }
+  #trackWagon { position: absolute; top: 50%; width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50%;
+    background: var(--moon); box-shadow: 0 0 10px var(--moon); left: 0; }
+  #trackBarn { position: absolute; right: -6px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; }
+  .round { pointer-events: auto; width: 48px; height: 48px; border-radius: 50%; background: var(--panel); border: 2px solid var(--line);
+    display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  .round svg { width: 24px; height: 24px; fill: var(--text); }
+  #soundBtn[aria-pressed="false"] .on, #soundBtn[aria-pressed="true"] .off { display: none; }
+  #soundBtn[aria-pressed="false"] { opacity: 0.75; }
+
+  #hint { position: fixed; left: 50%; bottom: max(26px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 2;
+    background: var(--panel); border: 2px solid var(--line); border-radius: 16px; padding: 10px 18px; font-size: 19px; font-weight: 700;
+    text-align: center; pointer-events: none; transition: opacity 0.6s; width: max-content; max-width: calc(100% - 32px); }
+  #hint.fade { opacity: 0; }
+
+  /* ---- menus and the score card ---- */
+  .screen { position: fixed; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; overflow-y: auto;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+    background: radial-gradient(ellipse at 50% 30%, rgba(30, 16, 48, 0.25), rgba(8, 5, 14, 0.78)); }
+  .card { width: min(100%, 560px); margin: auto; background: var(--panel); border: 2px solid var(--line); border-radius: 22px;
+    padding: 20px 20px 18px; text-align: center; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+  h1 { margin: 0; font-size: clamp(34px, 9vw, 52px); line-height: 1.02; letter-spacing: 0.01em; color: var(--pumpkin);
+    text-shadow: 0 3px 0 #5a2405, 0 0 24px rgba(255, 138, 30, 0.45); }
+  h1 small { display: block; font-size: 0.42em; color: var(--moon); letter-spacing: 0.08em; text-transform: uppercase; text-shadow: none; margin-bottom: 4px; }
+  .lede { margin: 10px 0 14px; color: var(--dim); font-size: 17px; }
+  .rides { display: grid; gap: 10px; }
+  .ride { display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: center; text-align: left;
+    background: #2a1840; border: 2px solid var(--line); border-radius: 16px; padding: 10px 14px 10px 10px; min-height: 72px; }
+  .ride:hover, .ride:focus-visible { border-color: var(--pumpkin); background: #34204f; }
+  .ride:active { transform: scale(0.98); }
+  .ride .icon { width: 56px; height: 56px; }
+  .ride b { display: block; font-size: 20px; color: var(--moon); }
+  .ride span { display: block; color: var(--dim); font-size: 14.5px; }
+  .ride .meta { color: #e8c48c; font-size: 13.5px; margin-top: 2px; }
+  .how { margin: 14px 0 0; font-size: 15px; color: var(--dim); }
+  .small { margin: 10px 0 0; font-size: 13px; color: #9f8bb2; }
+  .big { display: inline-flex; align-items: center; justify-content: center; min-height: 56px; padding: 0 22px; border-radius: 16px;
+    font-size: 20px; font-weight: 800; background: var(--pumpkin); color: #2b1203; box-shadow: 0 4px 0 var(--pumpkin-deep); }
+  .big:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--pumpkin-deep); }
+  .big.quiet { background: #3a2556; color: var(--text); box-shadow: 0 4px 0 #1f1230; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 16px; }
+  #score h2 { margin: 6px 0 2px; font-size: clamp(30px, 8vw, 44px); color: var(--moon); line-height: 1.1; }
+  #score .of { color: var(--dim); font-size: 18px; margin: 0; }
+  #stars { display: flex; justify-content: center; gap: 10px; margin: 14px 0 6px; }
+  #stars svg { width: 58px; height: 58px; transform: scale(0); }
+  #stars svg.show { animation: pop 0.45s cubic-bezier(.2, 1.6, .5, 1) forwards; }
+  @keyframes pop { to { transform: scale(1); } }
+  #cheer { font-size: 19px; margin: 6px 0 0; }
+  #newBest { display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 999px; background: var(--grape); font-weight: 800; }
+  #spookRow { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; margin: 10px auto 0; max-width: 420px; }
+  #spookRow svg { width: 26px; height: 26px; }
+  #spookRow svg.missed { opacity: 0.22; }
+  @media (max-height: 520px) and (orientation: landscape) {
+    .card { padding: 12px 16px; }
+    h1 { font-size: 30px; }
+    .lede { margin: 4px 0 8px; font-size: 15px; }
+    .rides { grid-template-columns: repeat(3, 1fr); }
+    .ride { grid-template-columns: 1fr; text-align: center; justify-items: center; padding: 8px; gap: 2px; }
+    .ride .icon { width: 36px; height: 36px; }
+    .ride span:not(.meta) { display: none; }
+    .how { margin-top: 8px; font-size: 14px; }
+    #stars svg { width: 42px; height: 42px; }
+    #stars { margin: 6px 0 2px; }
+    .row { margin-top: 10px; }
+  }
+  #loading { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--panel); z-index: 4;
+    border: 2px solid var(--line); border-radius: 14px; padding: 16px 18px; max-width: min(92vw, 440px); text-align: center; display: none; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-ghost" viewBox="0 0 64 64"><path d="M32 6C19 6 11 16 11 29v25l7-5 7 5 7-5 7 5 7-5 7 5V29C53 16 45 6 32 6z" fill="#e8f4ff"/><ellipse cx="24.5" cy="28" rx="3.6" ry="4.6" fill="#1a1426"/><ellipse cx="39.5" cy="28" rx="3.6" ry="4.6" fill="#1a1426"/><ellipse cx="32" cy="38" rx="3" ry="2.4" fill="#1a1426"/><circle cx="19" cy="35" r="2.6" fill="#ff9fb0"/><circle cx="45" cy="35" r="2.6" fill="#ff9fb0"/></symbol>
+    <symbol id="i-pumpkin" viewBox="0 0 64 64"><path d="M30 8c2-3 6-3 7 0l-1 7h-5z" fill="#4c6b1c"/><ellipse cx="32" cy="38" rx="25" ry="20" fill="#ff8a1e"/><ellipse cx="32" cy="38" rx="11" ry="20" fill="#f07a10"/><path d="M19 32l6-6 5 6zM34 32l5-6 6 6z" fill="#ffe28a"/><path d="M20 42c4 5 20 5 24 0l-4 1-2-2-3 2-3-2-3 2-2-2z" fill="#ffe28a"/></symbol>
+    <symbol id="i-scarecrow" viewBox="0 0 64 64"><rect x="30" y="18" width="4" height="44" fill="#6b4421"/><rect x="8" y="30" width="48" height="5" rx="2" fill="#6b4421"/><rect x="20" y="28" width="24" height="20" rx="3" fill="#b8311d"/><circle cx="32" cy="18" r="9" fill="#c9a66b"/><rect x="18" y="8" width="28" height="3" rx="1.5" fill="#3b2513"/><rect x="25" y="1" width="14" height="9" rx="2" fill="#3b2513"/><circle cx="28.5" cy="17" r="1.6" fill="#1a1426"/><circle cx="35.5" cy="17" r="1.6" fill="#1a1426"/><path d="M27 21.5q5 3 10 0" stroke="#1a1426" stroke-width="1.6" fill="none"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 64 64"><circle cx="32" cy="32" r="22" fill="#ffe9a8"/><circle cx="42" cy="25" r="20" fill="#2a1840"/><circle cx="12" cy="12" r="1.6" fill="#fff"/><circle cx="52" cy="50" r="1.4" fill="#fff"/><circle cx="48" cy="10" r="1.2" fill="#fff"/></symbol>
+    <symbol id="i-star" viewBox="0 0 64 64"><path d="M32 4l8.5 18 19.5 2.3-14.5 13.4 3.9 19.3L32 47.2 14.6 57l3.9-19.3L4 24.3 23.5 22z" fill="#ffd34d" stroke="#a86b00" stroke-width="2.5" stroke-linejoin="round"/></symbol>
+    <symbol id="i-star-empty" viewBox="0 0 64 64"><path d="M32 4l8.5 18 19.5 2.3-14.5 13.4 3.9 19.3L32 47.2 14.6 57l3.9-19.3L4 24.3 23.5 22z" fill="#3a2556" stroke="#6b4f8c" stroke-width="2.5" stroke-linejoin="round"/></symbol>
+    <symbol id="i-barn" viewBox="0 0 64 64"><path d="M6 28L32 8l26 20v30H6z" fill="#b8311d"/><path d="M22 58V36h20v22" fill="#fbf1e4"/><path d="M24 38l16 18M40 38L24 56" stroke="#b8311d" stroke-width="3"/></symbol>
+  </defs>
+</svg>
+
+<div id="stage">
+  <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()" aria-label="The cornfield at night, seen from the hay wagon"></canvas>
+</div>
+
+<div id="hud" class="hidden">
+  <div class="pill" id="found" title="Spooks found" aria-live="polite"><svg aria-hidden="true"><use href="#i-ghost"/></svg><span id="foundN">0</span></div>
+  <div id="track" aria-hidden="true"><div id="trackFill"></div><div id="trackWagon"></div><svg id="trackBarn"><use href="#i-barn"/></svg></div>
+  <button class="round" id="soundBtn" aria-label="Sound" aria-pressed="true" title="Sound on or off (M)">
+    <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path class="on" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="#fbf1e4" stroke-width="2" fill="none" stroke-linecap="round"/><path class="off" d="M16 9l5 6M21 9l-5 6" stroke="#fbf1e4" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+  </button>
+  <button class="round" id="pauseBtn" aria-label="Pause" title="Pause (Esc)"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+</div>
+<div id="hint" class="hidden"></div>
+
+<div id="menu" class="screen hidden">
+  <div class="card">
+    <h1><small>All aboard the</small>Haunted Hayride</h1>
+    <p class="lede">Friendly spooks are hiding in the corn tonight. Shine your flashlight on them to say hello!</p>
+    <div class="rides" id="rides"></div>
+    <p class="how" id="how"></p>
+    <p class="small">Nothing scary, just giggles. Sound on for the full ride.
+      <a href="https://danielstephenson.dev/play" target="_top">More games</a> ·
+      <a href="https://github.com/Preponderous-Software/haunted-hayride" target="_blank" rel="noopener">Source</a> ·
+      Made with <a href="https://github.com/Preponderous-Software/strata" target="_blank" rel="noopener">Strata</a></p>
+  </div>
+</div>
+
+<div id="score" class="screen hidden" role="dialog" aria-labelledby="scoreTitle">
+  <div class="card">
+    <svg width="64" height="64" aria-hidden="true"><use href="#i-barn"/></svg>
+    <h2 id="scoreTitle">You found 0 spooks!</h2>
+    <p class="of" id="scoreOf"></p>
+    <div id="stars" aria-hidden="true"></div>
+    <div id="spookRow" aria-hidden="true"></div>
+    <p id="cheer"></p>
+    <div id="newBest" class="hidden">New best!</div>
+    <div class="row">
+      <button class="big" id="againBtn">Ride again</button>
+      <button class="big quiet" id="pickBtn">Pick a ride</button>
+    </div>
+  </div>
+</div>
+
+<div id="paused" class="screen hidden" role="dialog" aria-labelledby="pausedTitle">
+  <div class="card">
+    <h2 id="pausedTitle" style="margin:4px 0 8px;font-size:34px;color:var(--moon)">Paused</h2>
+    <p class="lede">The wagon is waiting. The spooks are too.</p>
+    <div class="row">
+      <button class="big" id="resumeBtn">Keep riding</button>
+      <button class="big quiet" id="barnBtn">Back to the barn</button>
+    </div>
+  </div>
+</div>
+<div id="loading"></div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $('canvas');
+  var ready = false, call = {}, rides = [], status = {}, mode = '';
+  var touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  var ICONS = ['i-pumpkin', 'i-scarecrow', 'i-moon'];
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function best(i) { return parseInt(store('hayride-best-' + i) || '0', 10) || 0; }
+
+  // ------------------------------------------------------------ sound (Web Audio, all made here: no recordings)
+  var Sound = (function () {
+    var ctx = null, master = null, music = null, sfx = null, amb = null, noise = null;
+    var muted = store('hayride-sound') === 'off', riding = false, timers = [];
+    function now() { return ctx.currentTime; }
+    function start() {
+      if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      ctx = new AC();
+      var comp = ctx.createDynamicsCompressor();
+      comp.connect(ctx.destination);
+      master = ctx.createGain(); master.gain.value = muted ? 0 : 0.9; master.connect(comp);
+      music = ctx.createGain(); music.gain.value = 0.32; music.connect(master);
+      sfx = ctx.createGain(); sfx.gain.value = 0.8; sfx.connect(master);
+      amb = ctx.createGain(); amb.gain.value = 0.5; amb.connect(master);
+      noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+      var d = noise.getChannelData(0);
+      for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      wind();
+      timers.push(setInterval(crickets, 420));
+      timers.push(setInterval(tune, 150));
+      timers.push(setInterval(putt, 330));
+    }
+    function out(pan, dest) {
+      dest = dest || sfx;
+      if (pan && ctx.createStereoPanner) { var p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); p.connect(dest); return p; }
+      return dest;
+    }
+    function env(g, t, a, peak, dec) {
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + a);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + a + dec);
+    }
+    function tone(type, f, t, dur, peak, dest, glideTo) {
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t);
+      if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, t + dur);
+      env(g, t, 0.01, peak, dur);
+      o.connect(g); g.connect(dest || sfx);
+      o.start(t); o.stop(t + dur + 0.05);
+      return o;
+    }
+    function burst(t, dur, freq, q, peak, dest) {
+      var s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+      s.buffer = noise; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+      env(g, t, 0.005, peak, dur);
+      s.connect(f); f.connect(g); g.connect(dest || sfx);
+      s.start(t, Math.random()); s.stop(t + dur + 0.05);
+      return f;
+    }
+    function wind() {
+      var s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+      s.buffer = noise; s.loop = true; f.type = 'lowpass'; f.frequency.value = 380; g.gain.value = 0.05;
+      lfo.frequency.value = 0.09; lg.gain.value = 0.035; lfo.connect(lg); lg.connect(g.gain);
+      s.connect(f); f.connect(g); g.connect(amb); s.start(); lfo.start();
+    }
+    function crickets() {
+      if (!ctx || muted || Math.random() < 0.45) return;
+      var t = now() + Math.random() * 0.3, f = 4200 + Math.random() * 700, dest = out(Math.random() * 1.6 - 0.8, amb);
+      for (var i = 0; i < 3; i++) tone('sine', f, t + i * 0.045, 0.03, 0.012, dest);
+    }
+    // The tractor's gentle putt-putt, while riding.
+    function putt() {
+      if (!ctx || muted || !riding) return;
+      var t = now();
+      tone('sine', 62, t, 0.09, 0.05, amb, 48);
+      burst(t, 0.04, 300, 1.2, 0.02, amb);
+    }
+    // A bouncy little tune, spooky but cheerful: plucked melody over a walking bass.
+    var BPM = 104, step = 0, nextAt = 0;
+    var MEL = [69, 0, 72, 0, 76, 0, 74, 72, 71, 0, 69, 0, 0, 0, 64, 0,
+               65, 0, 69, 0, 72, 0, 71, 69, 67, 0, 65, 0, 0, 0, 0, 0,
+               67, 0, 71, 0, 74, 0, 72, 71, 69, 0, 67, 0, 64, 0, 67, 0,
+               68, 0, 71, 0, 76, 0, 74, 71, 69, 0, 0, 0, 0, 0, 0, 0];
+    var BASS = [45, 52, 45, 52, 41, 48, 41, 48, 43, 50, 43, 50, 40, 47, 44, 47];
+    function hz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+    function tune() {
+      if (!ctx || muted) return;
+      var sixteenth = 60 / BPM / 4;
+      if (nextAt < now()) nextAt = now() + 0.05;
+      while (nextAt < now() + 0.3) {
+        var m = MEL[step % MEL.length];
+        if (m) { tone('triangle', hz(m), nextAt, 0.32, 0.09, music); tone('sine', hz(m + 12), nextAt, 0.18, 0.03, music); }
+        if (step % 4 === 0) tone('triangle', hz(BASS[(step / 4) % BASS.length]), nextAt, 0.3, 0.12, music);
+        if (step % 8 === 4) burst(nextAt, 0.05, 6000, 0.8, 0.012, music);
+        step++;
+        nextAt += sixteenth;
+      }
+    }
+    var PEEK = {
+      ghost: function (t, d) { var o = tone('sine', 420, t, 0.7, 0.12, d); o.frequency.linearRampToValueAtTime(640, t + 0.3); o.frequency.linearRampToValueAtTime(500, t + 0.7); },
+      cat: function (t, d) { var o = tone('sawtooth', 620, t, 0.36, 0.05, d); o.frequency.linearRampToValueAtTime(940, t + 0.12); o.frequency.linearRampToValueAtTime(560, t + 0.36); },
+      jack: function (t, d) { [0, 0.09, 0.18].forEach(function (k, i) { tone('triangle', 520 + i * 140, t + k, 0.1, 0.1, d, 700 + i * 160); }); },
+      bat: function (t, d) { tone('square', 2100, t, 0.05, 0.025, d, 2700); tone('square', 2300, t + 0.09, 0.05, 0.025, d, 2900); }
+    };
+    var GIGGLE = { ghost: 760, cat: 900, jack: 640, bat: 1150 };
+    function play(type, kind, pan) {
+      if (!ctx || muted) return;
+      var t = now(), d = out(pan * 0.8);
+      if (type === 0) (PEEK[kind] || PEEK.ghost)(t, d);
+      else if (type === 1) {
+        burst(t, 0.07, 1400, 1.5, 0.25, d);
+        tone('sine', 900, t, 0.12, 0.2, d, 180);
+        var base = GIGGLE[kind] || 760;
+        for (var i = 0; i < 5; i++) {
+          var o = tone('triangle', base * (1 - i * 0.05), t + 0.12 + i * 0.075, 0.07, 0.11, d);
+          o.frequency.linearRampToValueAtTime(base * (1.12 - i * 0.05), t + 0.15 + i * 0.075);
+        }
+        [1568, 2093, 2637].forEach(function (f, k) { tone('sine', f, t + 0.5 + k * 0.07, 0.4, 0.05, d); });
+      } else if (type === 2) {
+        var f = burst(t, 0.3, 900, 0.7, 0.03, d); f.frequency.exponentialRampToValueAtTime(300, t + 0.3);
+      } else if (type === 3) {
+        [60, 64, 67, 72, 76].forEach(function (m, k) { tone('triangle', hz(m + 12), t + k * 0.11, 0.5, 0.11); });
+        [60, 64, 67].forEach(function (m) { tone('sine', hz(m), t + 0.6, 1.2, 0.07); });
+      }
+    }
+    function chime(k) { if (ctx && !muted) tone('sine', hz(76 + k * 3), now(), 0.5, 0.12); }
+    return {
+      start: start, play: play, chime: chime,
+      riding: function (on) { riding = on; },
+      muted: function () { return muted; },
+      setMuted: function (m) {
+        muted = m; store('hayride-sound', m ? 'off' : 'on');
+        if (master) master.gain.setTargetAtTime(m ? 0 : 0.9, now(), 0.05);
+      },
+      suspend: function (on) { if (ctx) { if (on) ctx.suspend(); else ctx.resume(); } }
+    };
+  })();
+
+  // ------------------------------------------------------------ screens
+  function show(id) {
+    ['menu', 'score', 'paused'].forEach(function (s) { $(s).classList.toggle('hidden', s !== id); });
+    $('hud').classList.toggle('hidden', id !== null && id !== 'paused');
+  }
+  function buildMenu() {
+    var box = $('rides');
+    box.textContent = '';
+    rides.forEach(function (r, i) {
+      var b = document.createElement('button');
+      b.className = 'ride';
+      b.id = 'ride' + i;
+      var mins = r.seconds < 100 ? 'About a minute and a half' : r.seconds < 130 ? 'About two minutes' : 'About two and a half minutes';
+      var bst = best(i);
+      b.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#' + ICONS[i] + '"/></svg><div><b></b><span></span><span class="meta"></span></div>';
+      b.querySelector('b').textContent = r.name;
+      b.querySelector('span').textContent = r.blurb;
+      b.querySelector('.meta').textContent = mins + ' · ' + r.spooks + ' spooks' + (bst ? ' · Best: ' + bst : '');
+      b.addEventListener('click', function () { startRide(i); });
+      box.appendChild(b);
+    });
+    $('how').textContent = touch
+      ? 'Touch the screen to point your flashlight. Keep the light on a spook until it giggles!'
+      : 'Move the mouse to point your flashlight. Keep the light on a spook until it giggles!';
+  }
+  var current = 0, hintTimer = null, lastCaught = 0;
+  function startRide(i) {
+    Sound.start();
+    current = i;
+    call.start(i);
+    lastCaught = 0;
+    $('foundN').textContent = '0';
+    show(null);
+    Sound.riding(true);
+    var h = $('hint');
+    h.textContent = touch ? 'Touch a spook to shine your light on it!' : 'Point at the spooks to shine your light on them!';
+    h.classList.remove('hidden', 'fade');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(function () { h.classList.add('fade'); }, 5000);
+  }
+  function toMenu() {
+    call.title();
+    Sound.riding(false);
+    $('hint').classList.add('hidden');
+    buildMenu();
+    show('menu');
+  }
+  function pause(on) {
+    if (mode !== 'riding') return;
+    call.pause(on ? 1 : 0);
+    Sound.riding(!on);
+    show(on ? 'paused' : null);
+  }
+  function cheer(f) {
+    if (f >= 1) return 'Every single spook! You are a super spook spotter!';
+    if (f >= 0.75) return 'Wow! The spooks loved saying hello!';
+    if (f >= 0.45) return 'Great job! Ride again to find even more.';
+    if (f > 0) return 'Nice! Some spooks are still hiding. Try again?';
+    return 'The spooks are shy tonight. Point your light at them to say hello!';
+  }
+  function showScore(s) {
+    Sound.riding(false);
+    var n = s.caught, total = s.total;
+    $('scoreTitle').textContent = n === 1 ? 'You found 1 spook!' : 'You found ' + n + ' spooks!';
+    $('scoreOf').textContent = 'out of ' + total + ' hiding on ' + (rides[s.ride] ? rides[s.ride].name : 'the ride');
+    var f = total ? n / total : 0;
+    var stars = n === 0 ? 1 : f >= 0.8 ? 3 : f >= 0.45 ? 2 : 1;
+    var box = $('stars');
+    box.innerHTML = '';
+    for (var k = 0; k < 3; k++) {
+      var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      use.setAttribute('href', k < stars ? '#i-star' : '#i-star-empty');
+      svg.appendChild(use);
+      box.appendChild(svg);
+      (function (el, k) { setTimeout(function () { el.classList.add('show'); if (k < stars) Sound.chime(k); }, 350 + k * 380); })(svg, k);
+    }
+    var row = $('spookRow');
+    row.innerHTML = '';
+    for (var j = 0; j < total; j++) {
+      var g = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      var u = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      u.setAttribute('href', '#i-ghost');
+      g.appendChild(u);
+      if (j >= n) g.setAttribute('class', 'missed');
+      row.appendChild(g);
+    }
+    $('cheer').textContent = cheer(f);
+    var was = best(s.ride);
+    $('newBest').classList.toggle('hidden', !(n > was && n > 0));
+    if (n > was) store('hayride-best-' + s.ride, String(n));
+    show('score');
+    $('againBtn').focus();
+  }
+
+  // ------------------------------------------------------------ the game's state, four times a second and more
+  function refresh() {
+    if (!ready) return;
+    var s;
+    try { s = JSON.parse(call.status()); } catch (e) { return; }
+    status = s;
+    window.hayrideStatus = s;
+    if (s.mode !== mode) {
+      var was = mode;
+      mode = s.mode;
+      if (mode === 'done' && was === 'riding') showScore(s);
+    }
+    if (mode === 'riding') {
+      if (s.caught !== lastCaught) {
+        lastCaught = s.caught;
+        $('foundN').textContent = String(s.caught);
+        var p = $('found');
+        p.classList.remove('bump'); void p.offsetWidth; p.classList.add('bump');
+        $('hint').classList.add('fade');
+      }
+      var pct = Math.round(s.progress * 1000) / 10;
+      $('trackFill').style.width = pct + '%';
+      $('trackWagon').style.left = pct + '%';
+    }
+  }
+
+  // ------------------------------------------------------------ pointing the light
+  function aimAt(e) {
+    if (!ready) return;
+    var r = canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    call.aim((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+  }
+  var held = {};
+  canvas.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    Sound.start();
+    if (e.pointerType === 'touch' && !touch) setTouch(true);
+    held[e.pointerId] = true;
+    if (canvas.setPointerCapture) try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    aimAt(e);
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (e.pointerType === 'mouse' || held[e.pointerId]) aimAt(e);
+  });
+  ['pointerup', 'pointercancel'].forEach(function (t) { canvas.addEventListener(t, function (e) { delete held[e.pointerId]; }); });
+
+  function setTouch(on) { touch = on; if (mode === 'title' || !mode) buildMenu(); }
+
+  // The drawing size: the canvas in CSS pixels times the device pixel ratio, capped at 2.
+  function sizeCanvas() {
+    if (!ready) return;
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var k = (window.devicePixelRatio || 1) > 2 ? 2 / window.devicePixelRatio : 1;
+    call.resize(Math.round(canvas.clientWidth * k), Math.round(canvas.clientHeight * k));
+    return dpr;
+  }
+
+  function wire() {
+    $('soundBtn').setAttribute('aria-pressed', Sound.muted() ? 'false' : 'true');
+    $('soundBtn').addEventListener('click', function () {
+      Sound.start();
+      Sound.setMuted(!Sound.muted());
+      $('soundBtn').setAttribute('aria-pressed', Sound.muted() ? 'false' : 'true');
+    });
+    $('pauseBtn').addEventListener('click', function () { pause(true); });
+    $('resumeBtn').addEventListener('click', function () { pause(false); });
+    $('barnBtn').addEventListener('click', function () { call.pause(0); toMenu(); });
+    $('againBtn').addEventListener('click', function () { startRide(current); });
+    $('pickBtn').addEventListener('click', toMenu);
+    window.addEventListener('keydown', function (e) {
+      Sound.start();
+      if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+        if (mode === 'riding') pause($('paused').classList.contains('hidden'));
+      } else if (e.key === 'm' || e.key === 'M') $('soundBtn').click();
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) { pause(true); Sound.suspend(true); } else Sound.suspend(false);
+    });
+    window.addEventListener('touchstart', function () { if (!touch) setTouch(true); }, { passive: true });
+    window.addEventListener('resize', sizeCanvas);
+    if (window.ResizeObserver) new ResizeObserver(sizeCanvas).observe(canvas);
+    setInterval(refresh, 120);
+  }
+
+  window.Module = {
+    canvas: canvas,
+    print: function (t) { console.log(t); },
+    printErr: function (t) { console.warn(t); },
+    hayrideSound: function (type, kind, pan) { Sound.play(type, kind, pan); },
+    onGameReady: function () {
+      call = {
+        aim: Module.cwrap('hayride_aim', null, ['number', 'number']),
+        start: Module.cwrap('hayride_start', null, ['number']),
+        title: Module.cwrap('hayride_title', null, []),
+        pause: Module.cwrap('hayride_pause', null, ['number']),
+        auto: Module.cwrap('hayride_auto', null, ['number']),
+        speed: Module.cwrap('hayride_speed', null, ['number']),
+        resize: Module.cwrap('hayride_resize', null, ['number', 'number']),
+        rides: Module.cwrap('hayride_rides', 'string', []),
+        status: Module.cwrap('hayride_status', 'string', [])
+      };
+      window.hayride = call;  // for the smoke test and the curious
+      try { rides = JSON.parse(call.rides()); } catch (e) { rides = []; }
+      ready = true;
+      StrataBoot.ready();
+      wire();
+      sizeCanvas();
+      buildMenu();
+      show('menu');
+      refresh();
+    },
+    onRendererFailed: function (why) {
+      StrataLoader.fallback('engine', 'Haunted Hayride needs WebGL 2, which this browser did not provide (' + why + ').');
+    },
+    onAbort: function (what) {
+      $('loading').style.display = 'block';
+      $('loading').textContent = 'Haunted Hayride stopped: ' + what;
+    }
+  };
+})();
+</script>
+<!-- emcc's script tag, kept inert: web/strata-boot.js starts it behind the
+     loading shell. data-bytes is the download's size, stamped by the build. -->
+<template id="strata-glue" data-bytes="0">{{{ SCRIPT }}}</template>
+<script src="strata-kit/strata-loader.js"></script>
+<script src="strata-boot.js"></script>
+<script>
+  StrataBoot.start({
+    wasm: 'haunted-hayride.wasm',
+    title: 'Haunted Hayride',
+    fallback: { href: 'https://danielstephenson.dev/play', text: 'More games' },
+    canvas: document.getElementById('canvas')
+  }).catch(function () {});
+</script>
+</body>
+</html>

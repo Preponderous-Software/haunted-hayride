@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ride:
+    name: Ride rules and tests (Linux)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the ride and its tests (no engine)
+        run: |
+          cmake -S . -B build -DHAYRIDE_WARNINGS_AS_ERRORS=ON
+          cmake --build build -j4
+      - name: Tests
+        run: ctest --test-dir build --output-on-failure
