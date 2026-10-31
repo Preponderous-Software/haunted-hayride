@@ -1,0 +1,8 @@
+{
+  "name": "haunted-hayride-web-smoke",
+  "private": true,
+  "description": "Headless Chromium smoke test for Haunted Hayride's browser build",
+  "dependencies": {
+    "playwright": "1.61.1"
+  }
+}
