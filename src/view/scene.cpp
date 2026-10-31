@@ -625,7 +625,8 @@ void Scene::draw(const Ride& ride, Vec3 beamDir, bool beamOn, float clock) {
         glow.push_back(glowPoint(hand + dir * 0.05f, 0, 0.09f, {1, 1, 0.9f}, 1.0f, 0));
     } else if (beam_) {
         float m[16];
-        frameMatrix(m, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, -50, 0});
+        // Tucked away under the ground (Strata wants an invertible matrix, so not a zero one).
+        frameMatrix(m, {1e-3f, 0, 0}, {0, 1e-3f, 0}, {0, 0, 1e-3f}, {0, -50, 0});
         engine_.setMeshTransform(beam_, m);
     }
 

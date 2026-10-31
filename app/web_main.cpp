@@ -120,7 +120,16 @@ void frame(void*) {
             if (g->mode == Mode::Title && g->doneFor > 2.0f) startRide(g->which, Mode::Title);
         }
     }
-    g->scene->draw(*g->ride, aim.dir, aim.on, g->clock);
+    try {
+        g->scene->draw(*g->ride, aim.dir, aim.on, g->clock);
+    } catch (const std::exception& ex) {
+        // A frame Strata refused: say why (once a second at most) and carry on with the next.
+        static double lastReport = -10;
+        if (now - lastReport > 1.0) {
+            lastReport = now;
+            std::fprintf(stderr, "hayride: a frame was not drawn: %s\n", ex.what());
+        }
+    }
     g->engine->present();
 }
 

@@ -82,7 +82,9 @@ function colourCount(png) {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+  page.on('console', (m) => {
+    if (m.type() === 'error' || /frame was not drawn/.test(m.text())) errors.push('console: ' + m.text());
+  });
   const fail = async (why) => {
     console.error('FAIL: ' + why);
     await page.screenshot({ path: path.join(outDir, 'failure.png'), timeout: 120000 }).catch(() => {});
