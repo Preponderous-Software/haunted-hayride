@@ -359,6 +359,8 @@ void Scene::setCamera(const Ride& ride, int width, int height) {
     tanX_ = tanY_ * aspect;
     eye_ = ride.eye();
     fwd_ = ride.forward();
+    // On a tall phone screen, look a little further down: less sky, more road.
+    if (aspect < 1.0f) fwd_ = normalize(fwd_ + Vec3{0, -0.22f * (1.0f - aspect), 0});
     right_ = normalize(cross(fwd_, kUp));
     up_ = cross(right_, fwd_);
     const Vec3 target = eye_ + fwd_;
@@ -628,7 +630,6 @@ void Scene::draw(const Ride& ride, Vec3 beamDir, bool beamOn, float clock) {
         engine_.setMeshTransform(beam_, m);
         lights.push_back(light(spot - beamDir * 0.8f + Vec3{0, 0.3f, 0}, 7.0f, {1.0f, 0.92f, 0.7f}, 2.4f));
         glow.push_back(glowPoint(spot, 0, 1.6f + reach * 0.12f, kBeam, 0.22f));
-        glow.push_back(glowPoint(hand + dir * 0.05f, 0, 0.09f, {1, 1, 0.9f}, 1.0f, 0));
     } else if (beam_) {
         float m[16];
         // Tucked away under the ground (Strata wants an invertible matrix, so not a zero one).

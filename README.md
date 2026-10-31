@@ -34,6 +34,8 @@ There are three rides:
 There are four kinds of spook: ghosts, black cats, pumpkin-headed jacks and
 bats. Each ride remembers its best score in your browser.
 
+![A pumpkin-headed jack pops up over a pumpkin, beside a scarecrow](docs/media/pumpkin-and-scarecrow.png)
+
 ![The score card at the barn](docs/media/score.png)
 
 ## How it is made
