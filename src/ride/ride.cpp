@@ -100,7 +100,7 @@ Ride::Ride(const RideDef& def) : def_(def), route_(def.control) {
         const Vec3 out = left * static_cast<float>(sp.side);
         sp.outward = out;
         // How high the spook's centre is when out, by kind.
-        const float hy = sp.kind == Kind::Cat ? 0.5f : sp.kind == Kind::Bat ? 2.3f : sp.kind == Kind::Jack ? 1.0f : 1.35f;
+        const float hy = sp.kind == Kind::Cat ? 0.6f : sp.kind == Kind::Bat ? 2.4f : sp.kind == Kind::Jack ? 1.3f : 1.7f;
         sp.radius = sp.kind == Kind::Cat ? 0.45f : sp.kind == Kind::Bat ? 0.45f : 0.55f;
         switch (sp.hide) {
         case Hide::Corn:

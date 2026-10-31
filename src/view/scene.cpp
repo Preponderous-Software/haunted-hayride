@@ -175,11 +175,17 @@ void Scene::buildCorn(const Ride& ride) {
         for (float x = -half; x <= half; x += step) {
             const Vec3 p{x + rng.range(-0.3f, 0.3f), 0, z + rng.range(-0.3f, 0.3f)};
             const float ang = rng.range(0, kPi);
-            const float tall = rng.range(2.0f, 2.6f), wide = rng.range(0.8f, 1.05f), tint = rng.unit();
+            float tall = rng.range(2.0f, 2.6f), wide = rng.range(0.8f, 1.05f);
+            const float tint = rng.unit();
             const float r = std::sqrt(p.x * p.x + p.z * p.z);
             if (r > maxR + kCornFar + 0.5f) continue;
             const float d = ride.route().distanceTo(p);
             if (d < kCornNear || d > kCornFar) continue;
+            // The rows by the road are lower (the wagon brushes them), so the rider sees over them.
+            if (d < 4.2f) {
+                tall *= 0.45f + 0.25f * smooth((d - kCornNear) / (4.2f - kCornNear));
+                wide *= 0.8f;
+            }
             bool skip = false;
             for (const auto& c : clear)
                 if (length(p - c.first) < c.second) skip = true;
@@ -456,7 +462,7 @@ void Scene::spooks(const Ride& ride, std::vector<StrataRenderItem>& items, std::
             items.push_back(item(STRATA_PRIMITIVE_SPHERE, c + side * (0.45f * k) + Vec3{0, 0.05f, 0} * k, Vec3{0.2f, 0.2f, 0.2f} * k, kGhost));
             items.push_back(item(STRATA_PRIMITIVE_SPHERE, c - side * ((0.5f + 0.06f * wave) * k) + Vec3{0, 0.32f + 0.1f * wave, 0} * k,
                                  Vec3{0.2f, 0.2f, 0.2f} * k, kGhost));
-            glow.push_back(glowPoint(c, 0, 2.0f * k, kGhostGlow, 0.22f));
+            glow.push_back(glowPoint(c, 0, 2.0f * k, kGhostGlow, 0.22f, STRATA_POINT_SOFT | STRATA_POINT_ON_TOP));
             break;
         }
         case Kind::Cat: {
@@ -476,7 +482,7 @@ void Scene::spooks(const Ride& ride, std::vector<StrataRenderItem>& items, std::
                                 Vec3{0, (-0.15f + 0.55f * u), 0} * k;
                 items.push_back(item(STRATA_PRIMITIVE_SPHERE, at, Vec3{0.1f, 0.1f, 0.1f} * k, kCat));
             }
-            glow.push_back(glowPoint(c + Vec3{0, 0.3f, 0}, 0, 1.4f * k, {0.6f, 0.5f, 1.0f}, 0.12f));
+            glow.push_back(glowPoint(c + Vec3{0, 0.3f, 0}, 0, 1.4f * k, {0.6f, 0.5f, 1.0f}, 0.12f, STRATA_POINT_SOFT | STRATA_POINT_ON_TOP));
             break;
         }
         case Kind::Jack: {
@@ -497,7 +503,7 @@ void Scene::spooks(const Ride& ride, std::vector<StrataRenderItem>& items, std::
                 glow.push_back(glowPoint(f + side * (0.065f * m * k) + Vec3{0, y, 0} * k - face * (0.04f * k * std::fabs(static_cast<float>(m)) / 2), 0,
                                          0.075f * k, {1.0f, 0.8f, 0.25f}, 1.0f, 0));
             }
-            glow.push_back(glowPoint(head, 0, 1.8f * k, kCandle, 0.16f));
+            glow.push_back(glowPoint(head, 0, 1.8f * k, kCandle, 0.16f, STRATA_POINT_SOFT | STRATA_POINT_ON_TOP));
             break;
         }
         case Kind::Bat: {
@@ -512,7 +518,7 @@ void Scene::spooks(const Ride& ride, std::vector<StrataRenderItem>& items, std::
             }
             eyes(c + Vec3{0, 0.05f, 0} * k, 0.17f * k, 0.07f, 0.08f, kBatEye, true);
             items.push_back(item(STRATA_PRIMITIVE_CUBE, c + face * (0.17f * k) - Vec3{0, 0.08f, 0} * k, Vec3{0.025f, 0.05f, 0.02f} * k, {0.95f, 0.95f, 0.9f}));
-            glow.push_back(glowPoint(c, 0, 1.4f * k, {0.8f, 0.5f, 1.0f}, 0.14f));
+            glow.push_back(glowPoint(c, 0, 1.4f * k, {0.8f, 0.5f, 1.0f}, 0.14f, STRATA_POINT_SOFT | STRATA_POINT_ON_TOP));
             break;
         }
         }
