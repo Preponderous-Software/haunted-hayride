@@ -84,6 +84,14 @@ profile and an iPhone 13 profile (`web/smoke/smoke.cjs`): it starts a ride,
 catches a spook with the real mouse or touch input, and rides to the score
 card. On `main` it deploys to the arcade.
 
+## Releases
+
+A release is a bare version tag (`0.1.0`, no `v`) that matches `project(... VERSION ...)` in
+`CMakeLists.txt`. Pushing one makes `.github/workflows/release.yml` build the browser game and
+attach `HauntedHayride-<version>-web.zip` (the page, its `.js` and `.wasm`, and the licences) and its
+`.sha256` to the GitHub release. The arcade still deploys every push to `main`; a release does not
+change what it serves.
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
